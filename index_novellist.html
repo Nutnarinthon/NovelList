@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>รายการนิยายที่อ่าน</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@600;700&family=Noto+Sans+Thai:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  /* ============ Design tokens ============ */
+  :root {
+    --color-bg: #14161c;
+    --color-surface: #1e212a;
+    --color-surface-alt: #262a35;
+    --color-border: #343946;
+    --color-text: #ede7dc;
+    --color-text-muted: #a8adb9;
+    --color-accent: #d4af6a;       /* amber ribbon — primary / constructive */
+    --color-accent-strong: #e8c17e;
+    --color-danger: #c1495c;       /* crimson ribbon — destructive */
+    --color-danger-strong: #d65a6e;
+    --color-focus: #7fb3d5;
+
+    --font-display: "Noto Serif Thai", "Noto Sans Thai", serif;
+    --font-body: "Noto Sans Thai", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", "Noto Sans Thai", monospace;
+
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--color-bg);
+    background-image: radial-gradient(circle at 10% 0%, rgba(212, 175, 106, 0.08), transparent 45%);
+    color: var(--color-text);
+    font-family: var(--font-body);
+    line-height: 1.5;
+    padding: var(--space-5) var(--space-4) var(--space-6);
+  }
+
+  .page {
+    max-width: 880px;
+    margin: 0 auto;
+  }
+
+  /* ============ Header (signature ribbon) ============ */
+  header.hero {
+    position: relative;
+    padding-left: var(--space-5);
+    margin-bottom: var(--space-5);
+  }
+
+  header.hero::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 2px;
+    bottom: 2px;
+    width: 4px;
+    border-radius: 2px;
+    background: linear-gradient(180deg, var(--color-accent), var(--color-danger));
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2rem);
+    margin: 0 0 var(--space-1);
+    color: var(--color-text);
+  }
+
+  .hero-subtitle {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.95rem;
+  }
+
+  /* ============ Toolbar ============ */
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    margin-bottom: var(--space-5);
+  }
+
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    flex: 1 1 240px;
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  label {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+  }
+
+  .input-row {
+    display: flex;
+    gap: var(--space-2);
+  }
+
+  input[type="text"] {
+    flex: 1;
+    min-width: 0;
+    background: var(--color-bg);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-3);
+    font: inherit;
+    font-size: 0.95rem;
+  }
+
+  input[type="text"]::placeholder { color: var(--color-text-muted); }
+
+  input[type="text"]:focus-visible,
+  input[type="number"]:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  /* ============ Buttons ============ */
+  button {
+    font: inherit;
+    font-weight: 600;
+    font-size: 0.9rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: var(--space-3) var(--space-4);
+    cursor: pointer;
+    transition: background-color 0.15s ease, transform 0.05s ease;
+    white-space: nowrap;
+  }
+
+  button:active { transform: translateY(1px); }
+
+  .btn-primary {
+    background: var(--color-accent);
+    color: #1a1305;
+  }
+  .btn-primary:hover { background: var(--color-accent-strong); }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+  }
+  .btn-secondary:hover { border-color: var(--color-accent); color: var(--color-accent-strong); }
+
+  .btn-danger {
+    background: transparent;
+    color: var(--color-danger-strong);
+    border: 1px solid var(--color-danger);
+    padding: var(--space-2) var(--space-3);
+    font-size: 0.85rem;
+  }
+  .btn-danger:hover { background: var(--color-danger); color: #fff; }
+
+  .search-actions { display: flex; gap: var(--space-2); }
+
+  /* ============ Status / count ============ */
+  .list-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: var(--space-3);
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+  }
+
+  /* ============ Table ============ */
+  .table-wrapper {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th, td {
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  th {
+    background: var(--color-surface-alt);
+    font-size: 0.8rem;
+    letter-spacing: 0.03em;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  tbody tr { transition: background-color 0.15s ease; }
+  tbody tr:hover { background: var(--color-surface-alt); }
+  tbody tr:last-child td { border-bottom: none; }
+
+  td.col-id { color: var(--color-text-muted); font-family: var(--font-mono); font-size: 0.8rem; }
+  td.col-name { font-weight: 500; }
+
+  input.chapter-input {
+    width: 72px;
+    text-align: center;
+    background: var(--color-bg);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2);
+    font: inherit;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .empty-row td, .loading-row td {
+    text-align: center;
+    color: var(--color-text-muted);
+    padding: var(--space-6) var(--space-4);
+    font-style: normal;
+  }
+
+  /* ============ Toast (aria-live status) ============ */
+  #toast {
+    position: fixed;
+    left: 50%;
+    bottom: var(--space-5);
+    transform: translateX(-50%) translateY(8px);
+    background: var(--color-surface-alt);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    font-size: 0.9rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    max-width: min(90vw, 360px);
+    z-index: 100;
+  }
+  #toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  #toast.toast-danger { border-color: var(--color-danger); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+
+  /* ============ Responsive: card layout below 640px ============ */
+  @media (max-width: 640px) {
+    body { padding: var(--space-4) var(--space-3) var(--space-6); }
+
+    .toolbar { flex-direction: column; }
+    .input-row { flex-wrap: wrap; }
+
+    table, thead, tbody, th, td, tr { display: block; }
+    thead {
+      position: absolute;
+      width: 1px; height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+    }
+
+    tbody tr {
+      border-bottom: 1px solid var(--color-border);
+      padding: var(--space-3) var(--space-4);
+    }
+    tbody tr:last-child { border-bottom: none; }
+
+    td {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-3);
+      border-bottom: none;
+      padding: var(--space-2) 0;
+    }
+    td::before {
+      content: attr(data-label);
+      color: var(--color-text-muted);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      flex-shrink: 0;
+    }
+    td.col-name { justify-content: flex-start; }
+    td.col-name::before { display: none; }
+    td.col-name { font-size: 1rem; }
+
+    .empty-row td::before, .loading-row td::before { content: ""; }
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <h1>📚 รายการนิยายที่อ่าน</h1>
+      <p class="hero-subtitle">ติดตามนิยายที่กำลังอ่านและจำนวนตอนล่าสุด</p>
+    </header>
+
+    <!-- เพิ่มนิยาย / ค้นหา -->
+    <section class="toolbar" aria-label="เพิ่มและค้นหานิยาย">
+      <div class="field-group">
+        <label for="novelName">เพิ่มนิยายใหม่</label>
+        <div class="input-row">
+          <input type="text" id="novelName" placeholder="ชื่อนิยาย" autocomplete="off">
+          <button type="button" id="addBtn" class="btn-primary">เพิ่มเรื่อง</button>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label for="searchBox">ค้นหานิยาย</label>
+        <div class="input-row">
+          <input type="text" id="searchBox" placeholder="ค้นหาชื่อนิยาย" autocomplete="off">
+          <div class="search-actions">
+            <button type="button" id="searchBtn" class="btn-secondary">ค้นหา</button>
+            <button type="button" id="showAllBtn" class="btn-secondary">แสดงทั้งหมด</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="list-meta">
+      <span id="novelCount" aria-live="polite">กำลังโหลด...</span>
+    </p>
+
+    <div class="table-wrapper" role="region" aria-label="ตารางรายการนิยาย">
+      <table id="novelTable">
+        <caption class="visually-hidden">รายการนิยายพร้อมจำนวนตอนที่อ่านแล้ว</caption>
+        <thead>
+          <tr>
+            <th scope="col">ID</th>
+            <th scope="col">ชื่อนิยาย</th>
+            <th scope="col">จำนวนตอนที่อ่าน</th>
+            <th scope="col">จัดการ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="loading-row"><td colspan="4">กำลังโหลดข้อมูล...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    let novels = [];
+    const API = "https://script.google.com/macros/s/AKfycbyaoxMmLOZ3cISqnOXbiH0fqhg43dBFWcw3_lXSFtC5Zgd632RJa0MLwe5xoKOKvkwt/exec";
+
+    // ---- Lightweight toast helper (replaces blocking alert() for non-critical messages) ----
+    let toastTimer = null;
+    function toast(message, variant = "default") {
+      const el = document.getElementById("toast");
+      el.textContent = message;
+      el.classList.toggle("toast-danger", variant === "danger");
+      el.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove("show"), 3200);
+    }
+
+    async function loadData() {
+      try {
+        const response = await fetch(API);
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+        novels = await response.json();
+        sortNovels();
+        renderTable();
+      } catch (error) {
+        console.error("Load data failed:", error);
+        toast("ไม่สามารถโหลดข้อมูลได้", "danger");
+        renderTable(); // clears the loading row even on failure
+      }
+    }
+
+    window.onload = loadData;
+
+    async function sendRequest(payload) {
+      try {
+        const response = await fetch(API, {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+
+        return response;
+      } catch (error) {
+        console.error("API request failed:", error);
+        toast("เกิดข้อผิดพลาดในการเชื่อมต่อข้อมูล", "danger");
+        throw error;
+      }
+    }
+
+    function sortNovels() {
+      novels.sort((a, b) => a.name.localeCompare(b.name, "th"));
+    }
+
+    function renderTable(filteredList = null) {
+      const tbody = document.querySelector("#novelTable tbody");
+      const fragment = document.createDocumentFragment();
+      const list = filteredList || novels;
+      const isFiltered = filteredList !== null;
+
+      updateCount(list.length, isFiltered);
+
+      if (list.length === 0) {
+        const tr = document.createElement("tr");
+        tr.className = "empty-row";
+        tr.innerHTML = `<td colspan="4">${
+          isFiltered ? "ไม่พบนิยายที่ค้นหา" : "ยังไม่มีนิยายในรายการ ลองเพิ่มเรื่องแรกของคุณ"
+        }</td>`;
+        fragment.appendChild(tr);
+      } else {
+        list.forEach((novel) => {
+          const tr = document.createElement("tr");
+
+          tr.innerHTML = `
+            <td class="col-id" data-label="ID">${novel.id}</td>
+            <td class="col-name" data-label="ชื่อนิยาย">${novel.name}</td>
+            <td data-label="จำนวนตอนที่อ่าน">
+              <label class="visually-hidden" for="chapters-${novel.id}">จำนวนตอนที่อ่านของ ${novel.name}</label>
+              <input
+                id="chapters-${novel.id}"
+                class="chapter-input"
+                type="number"
+                min="0"
+                value="${novel.chapters}"
+                data-id="${novel.id}">
+            </td>
+            <td data-label="จัดการ">
+              <button
+                type="button"
+                class="btn-danger delete-btn"
+                data-id="${novel.id}"
+                aria-label="ลบ ${novel.name} ออกจากรายการ">
+                ลบ
+              </button>
+            </td>
+          `;
+
+          fragment.appendChild(tr);
+        });
+      }
+
+      tbody.innerHTML = "";
+      tbody.appendChild(fragment);
+    }
+
+    function updateCount(shownCount, isFiltered) {
+      const el = document.getElementById("novelCount");
+      if (isFiltered) {
+        el.textContent = `พบ ${shownCount} จาก ${novels.length} เรื่อง`;
+      } else {
+        el.textContent = `ทั้งหมด ${novels.length} เรื่อง`;
+      }
+    }
+
+    function generateId() {
+      return crypto.randomUUID();
+    }
+
+    async function addNovel() {
+      const name = document.getElementById("novelName").value.trim();
+
+      if (!name) return;
+
+      if (novels.some((n) => n.name.toLowerCase() === name.toLowerCase())) {
+        toast("มีนิยายนี้แล้ว", "danger");
+        return;
+      }
+
+      const novel = {
+        id: crypto.randomUUID(),
+        name: name,
+        chapters: 0
+      };
+
+      try {
+        await sendRequest({
+          action: "add",
+          id: novel.id,
+          name: novel.name,
+          chapters: novel.chapters
+        });
+
+        novels.push(novel);
+        sortNovels();
+        renderTable();
+        document.getElementById("novelName").value = "";
+        toast(`เพิ่ม "${novel.name}" แล้ว`);
+      } catch (error) {
+        console.error("Add novel failed:", error);
+      }
+    }
+
+    document.getElementById("addBtn").addEventListener("click", addNovel);
+
+    document.getElementById("searchBox").addEventListener("input", (e) => {
+      const keyword = e.target.value.trim().toLowerCase();
+      if (!keyword) {
+        renderTable();
+        return;
+      }
+
+      renderTable(
+        novels.filter((n) => n.name.toLowerCase().includes(keyword))
+      );
+    });
+
+    document.getElementById("novelName").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        addNovel();
+      }
+    });
+
+    document.getElementById("searchBtn").addEventListener("click", searchNovel);
+    document.getElementById("showAllBtn").addEventListener("click", () => renderTable());
+
+    document.addEventListener("click", (event) => {
+      if (event.target.classList.contains("delete-btn")) {
+        if (confirm("ต้องการลบหรือไม่")) {
+          removeNovel(event.target.dataset.id);
+        }
+      }
+    });
+
+    document.addEventListener("change", (event) => {
+      if (event.target.classList.contains("chapter-input")) {
+        updateChapters(event.target.dataset.id, event.target.value);
+      }
+    });
+
+    async function removeNovel(id) {
+      const removed = novels.find((n) => n.id === id);
+      try {
+        await sendRequest({
+          action: "delete",
+          id: id
+        });
+
+        novels = novels.filter((novel) => novel.id !== id);
+        renderTable();
+        if (removed) toast(`ลบ "${removed.name}" แล้ว`);
+      } catch (error) {
+        console.error("Delete novel failed:", error);
+      }
+    }
+
+    async function updateChapters(id, value) {
+      const novel = novels.find((n) => n.id === id);
+      if (!novel) return;
+
+      const numericValue = Number(value);
+      if (Number.isNaN(numericValue)) return;
+
+      novel.chapters = numericValue;
+
+      try {
+        await sendRequest({
+          action: "update",
+          id: id,
+          chapters: numericValue
+        });
+      } catch (error) {
+        console.error("Update chapters failed:", error);
+      }
+    }
+
+    function searchNovel() {
+      const keyword = document.getElementById("searchBox").value.trim().toLowerCase();
+      if (!keyword) {
+        renderTable();
+        return;
+      }
+
+      const filtered = novels.filter((novel) => novel.name.toLowerCase().includes(keyword));
+      renderTable(filtered);
+    }
+  </script>
+</body>
+</html>
