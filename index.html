@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Novel Shelf — รายการนิยายที่อ่าน</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@600;700&family=Noto+Sans+Thai:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <div class="hero-badge">MY NOVEL SHELF</div>
+      <h1>📚 รายการนิยายที่อ่าน</h1>
+      <p class="hero-subtitle">จัดเก็บและติดตามนิยายที่กำลังอ่าน พร้อมอัปเดตจำนวนตอนล่าสุดได้ง่าย ๆ</p>
+    </header>
+
+    <!-- เพิ่ม / ค้นหานิยาย -->
+    <section class="toolbar" aria-label="เพิ่มหรือค้นหานิยาย">
+      <div class="field-group">
+        <label for="novelName">เพิ่ม / ค้นหานิยาย</label>
+        <div class="input-row">
+          <input type="text" id="novelName" placeholder="พิมพ์ชื่อนิยายเพื่อค้นหา หรือเพิ่มใหม่" autocomplete="off">
+          <div class="search-actions">
+            <button type="button" id="addSearchBtn" class="btn-primary">ค้นหา / เพิ่ม</button>
+            <button type="button" id="showAllBtn" class="btn-secondary">แสดงทั้งหมด</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="list-meta">
+      <span id="novelCount" aria-live="polite">กำลังโหลด...</span>
+    </p>
+
+    <div class="table-wrapper" role="region" aria-label="ตารางรายการนิยาย">
+      <table id="novelTable">
+        <caption class="visually-hidden">รายการนิยายพร้อมจำนวนตอนที่อ่านแล้ว</caption>
+        <thead>
+          <tr>
+            <th scope="col">ชื่อนิยาย</th>
+            <th scope="col">จำนวนตอนที่อ่าน</th>
+            <th scope="col">จัดการ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="loading-row"><td colspan="3">⏳ กำลังโหลดข้อมูล...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="addModal" class="modal" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="addModalTitle">
+      <h2 id="addModalTitle">เพิ่มนิยายใหม่</h2>
+      <p id="addModalMessage">ไม่พบนิยายที่ค้นหา ต้องการเพิ่มเรื่องนี้หรือไม่?</p>
+      <label class="visually-hidden" for="modalNovelName">ชื่อนิยาย</label>
+      <input type="text" id="modalNovelName" placeholder="ชื่อนิยาย" autocomplete="off">
+      <label for="modalChapterCount">จำนวนตอนที่อ่าน</label>
+      <input type="number" id="modalChapterCount" min="0" value="0" style="margin-top: 8px; width: 100%;">
+      <div class="modal-actions">
+        <button type="button" id="modalCancelBtn" class="btn-secondary">ยกเลิก</button>
+        <button type="button" id="modalAddBtn" class="btn-primary">เพิ่มเรื่อง</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="editModal" class="modal" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
+      <h2 id="editModalTitle">แก้ไขชื่อนิยาย</h2>
+      <p id="editModalMessage">ปรับปรุงชื่อนิยายที่เลือก</p>
+      <label class="visually-hidden" for="editNovelName">ชื่อนิยาย</label>
+      <input type="text" id="editNovelName" placeholder="ชื่อนิยาย" autocomplete="off">
+      <div class="modal-actions">
+        <button type="button" id="editModalCancelBtn" class="btn-secondary">ยกเลิก</button>
+        <button type="button" id="editModalSaveBtn" class="btn-primary">บันทึก</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    let novels = [];
+    const API = "https://script.google.com/macros/s/AKfycbyaoxMmLOZ3cISqnOXbiH0fqhg43dBFWcw3_lXSFtC5Zgd632RJa0MLwe5xoKOKvkwt/exec";
+
+    // ---- Lightweight toast helper (replaces blocking alert() for non-critical messages) ----
+    let toastTimer = null;
+    function toast(message, variant = "default") {
+      const el = document.getElementById("toast");
+      el.textContent = message;
+      el.classList.toggle("toast-danger", variant === "danger");
+      el.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove("show"), 3200);
+    }
+
+    async function loadData() {
+      try {
+        const response = await fetch(API);
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+        novels = await response.json();
+        sortNovels();
+        renderTable();
+      } catch (error) {
+        console.error("Load data failed:", error);
+        toast("ไม่สามารถโหลดข้อมูลได้", "danger");
+        renderTable(); // clears the loading row even on failure
+      }
+    }
+
+    window.onload = loadData;
+
+    async function sendRequest(payload) {
+      try {
+        const response = await fetch(API, {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+
+        return response;
+      } catch (error) {
+        console.error("API request failed:", error);
+        toast("เกิดข้อผิดพลาดในการเชื่อมต่อข้อมูล", "danger");
+        throw error;
+      }
+    }
+
+    function sortNovels() {
+      novels.sort((a, b) => a.name.localeCompare(b.name, "th"));
+    }
+
+    function renderTable(filteredList = null) {
+      const tbody = document.querySelector("#novelTable tbody");
+      const fragment = document.createDocumentFragment();
+      const list = filteredList || novels;
+      const isFiltered = filteredList !== null;
+
+      updateCount(list.length, isFiltered);
+
+      if (list.length === 0) {
+        const tr = document.createElement("tr");
+        tr.className = "empty-row";
+        tr.innerHTML = `<td colspan="3">${
+          isFiltered ? "🔎 ไม่พบนิยายที่ค้นหา" : "📖 ยังไม่มีนิยายในรายการ ลองเพิ่มเรื่องแรกของคุณ"
+        }</td>`;
+        fragment.appendChild(tr);
+      } else {
+        list.forEach((novel) => {
+          const tr = document.createElement("tr");
+
+          tr.innerHTML = `
+            <td class="col-name" data-label="ชื่อนิยาย">${novel.name}</td>
+            <td data-label="จำนวนตอนที่อ่าน">
+              <div class="chapter-editor">
+                <label class="visually-hidden" for="chapters-${novel.id}">จำนวนตอนที่อ่านของ ${novel.name}</label>
+                <input
+                  id="chapters-${novel.id}"
+                  class="chapter-input"
+                  type="number"
+                  min="0"
+                  value="${novel.chapters}"
+                  data-id="${novel.id}"
+                  data-original-value="${novel.chapters}">
+                <button
+                  type="button"
+                  class="btn-secondary chapter-save-btn"
+                  data-id="${novel.id}"
+                  aria-label="ยืนยันจำนวนตอนที่อ่านของ ${novel.name}">
+                  ยืนยัน
+                </button>
+              </div>
+            </td>
+            <td data-label="จัดการ">
+              <div class="manage-menu">
+                <button
+                  type="button"
+                  class="btn-secondary manage-toggle"
+                  data-id="${novel.id}"
+                  aria-haspopup="true"
+                  aria-expanded="false"
+                  aria-label="จัดการ ${novel.name}">
+                  จัดการ
+                </button>
+                <div class="manage-dropdown" role="menu" aria-label="เมนูจัดการ ${novel.name}">
+                  <button
+                    type="button"
+                    class="manage-edit-btn"
+                    data-id="${novel.id}"
+                    role="menuitem"
+                    aria-label="แก้ไขชื่อนิยาย ${novel.name}">
+                    แก้ไข
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-danger delete-btn"
+                    data-id="${novel.id}"
+                    role="menuitem"
+                    aria-label="ลบ ${novel.name} ออกจากรายการ">
+                    ลบ
+                  </button>
+                </div>
+              </div>
+            </td>
+          `;
+
+          fragment.appendChild(tr);
+        });
+      }
+
+      tbody.innerHTML = "";
+      tbody.appendChild(fragment);
+    }
+
+    function updateCount(shownCount, isFiltered) {
+      const el = document.getElementById("novelCount");
+      if (isFiltered) {
+        el.textContent = `พบ ${shownCount} จาก ${novels.length} เรื่อง`;
+      } else {
+        el.textContent = `ทั้งหมด ${novels.length} เรื่อง`;
+      }
+    }
+
+    function generateId() {
+      return crypto.randomUUID();
+    }
+
+    async function addNovel(nameOverride = null, chaptersOverride = null) {
+      const inputValue = nameOverride !== null ? nameOverride : document.getElementById("novelName").value;
+      const name = inputValue.trim();
+      const rawChapterValue = chaptersOverride !== null ? chaptersOverride : document.getElementById("modalChapterCount").value;
+      const parsedChapters = Number(rawChapterValue);
+      const chapters = Number.isFinite(parsedChapters) ? Math.max(0, Math.trunc(parsedChapters)) : 0;
+
+      if (!name) return;
+
+      if (novels.some((n) => n.name.toLowerCase() === name.toLowerCase())) {
+        toast("มีนิยายนี้แล้ว", "danger");
+        closeAddModal();
+        return;
+      }
+
+      const novel = {
+        id: crypto.randomUUID(),
+        name: name,
+        chapters: chapters
+      };
+
+      try {
+        await sendRequest({
+          action: "add",
+          id: novel.id,
+          name: novel.name,
+          chapters: novel.chapters
+        });
+
+        novels.push(novel);
+        sortNovels();
+        renderTable();
+        document.getElementById("novelName").value = "";
+        closeAddModal();
+        toast(`เพิ่ม "${novel.name}" แล้ว`);
+      } catch (error) {
+        console.error("Add novel failed:", error);
+      }
+    }
+
+    function openAddModal(preFill = "") {
+      const modal = document.getElementById("addModal");
+      const input = document.getElementById("modalNovelName");
+      const chapterInput = document.getElementById("modalChapterCount");
+      input.value = preFill.trim();
+      chapterInput.value = 0;
+      modal.classList.add("visible");
+      modal.setAttribute("aria-hidden", "false");
+      setTimeout(() => input.focus(), 0);
+    }
+
+    function closeAddModal() {
+      const modal = document.getElementById("addModal");
+      const input = document.getElementById("modalNovelName");
+      const chapterInput = document.getElementById("modalChapterCount");
+      input.value = "";
+      chapterInput.value = 0;
+      modal.classList.remove("visible");
+      modal.setAttribute("aria-hidden", "true");
+    }
+
+    function handleCombinedSearch() {
+      const keyword = document.getElementById("novelName").value.trim();
+      if (!keyword) {
+        renderTable();
+        return;
+      }
+
+      const matches = novels.filter((novel) => novel.name.toLowerCase().includes(keyword.toLowerCase()));
+      if (matches.length > 0) {
+        renderTable(matches);
+        return;
+      }
+
+      openAddModal(keyword);
+    }
+
+    document.getElementById("addSearchBtn").addEventListener("click", handleCombinedSearch);
+
+    document.getElementById("novelName").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        handleCombinedSearch();
+      }
+    });
+
+    document.getElementById("showAllBtn").addEventListener("click", () => renderTable());
+
+    document.getElementById("modalCancelBtn").addEventListener("click", closeAddModal);
+    document.getElementById("addModal").addEventListener("click", (event) => {
+      if (event.target === event.currentTarget) {
+        closeAddModal();
+      }
+    });
+    document.getElementById("modalNovelName").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        addNovel(document.getElementById("modalNovelName").value, document.getElementById("modalChapterCount").value);
+      }
+    });
+    document.getElementById("modalAddBtn").addEventListener("click", () => {
+      addNovel(document.getElementById("modalNovelName").value, document.getElementById("modalChapterCount").value);
+    });
+
+    function openEditModal(id, currentName) {
+      const modal = document.getElementById("editModal");
+      const input = document.getElementById("editNovelName");
+      input.dataset.id = id;
+      input.value = currentName;
+      modal.classList.add("visible");
+      modal.setAttribute("aria-hidden", "false");
+      setTimeout(() => input.focus(), 0);
+    }
+
+    function closeEditModal() {
+      const modal = document.getElementById("editModal");
+      const input = document.getElementById("editNovelName");
+      delete input.dataset.id;
+      input.value = "";
+      modal.classList.remove("visible");
+      modal.setAttribute("aria-hidden", "true");
+    }
+
+    async function updateNovelName(id, newName) {
+      const trimmed = newName.trim();
+      if (!trimmed) return;
+
+      const novel = novels.find((n) => n.id === id);
+      if (!novel) return;
+
+      if (novels.some((n) => n.id !== id && n.name.toLowerCase() === trimmed.toLowerCase())) {
+        toast("มีนิยายชื่อนี้แล้ว", "danger");
+        return;
+      }
+
+      const oldName = novel.name;
+      novel.name = trimmed;
+      try {
+        await sendRequest({
+          action: "update",
+          id: id,
+          name: trimmed,
+          chapters: novel.chapters
+        });
+
+        renderTable();
+        closeEditModal();
+        toast(`เปลี่ยนชื่อตัวเรื่องจาก "${oldName}" เป็น "${trimmed}" แล้ว`);
+      } catch (error) {
+        console.error("Rename novel failed:", error);
+        novel.name = oldName;
+      }
+    }
+
+    document.addEventListener("click", (event) => {
+      const manageMenu = event.target.closest(".manage-toggle");
+      if (manageMenu) {
+        const menu = manageMenu.parentElement;
+        const isOpen = menu.classList.contains("open");
+
+        document.querySelectorAll(".manage-menu").forEach((item) => {
+          item.classList.remove("open");
+          const toggle = item.querySelector(".manage-toggle");
+          if (toggle) toggle.setAttribute("aria-expanded", "false");
+        });
+
+        if (!isOpen) {
+          menu.classList.add("open");
+          manageMenu.setAttribute("aria-expanded", "true");
+        }
+        return;
+      }
+
+      if (event.target.classList.contains("manage-edit-btn")) {
+        const novel = novels.find((n) => n.id === event.target.dataset.id);
+        if (novel) {
+          openEditModal(novel.id, novel.name);
+        }
+        document.querySelectorAll(".manage-menu").forEach((item) => item.classList.remove("open"));
+        return;
+      }
+
+      if (event.target.classList.contains("delete-btn")) {
+        if (confirm("ต้องการลบหรือไม่")) {
+          removeNovel(event.target.dataset.id);
+        }
+        document.querySelectorAll(".manage-menu").forEach((item) => item.classList.remove("open"));
+        return;
+      }
+
+      if (!event.target.closest(".manage-menu")) {
+        document.querySelectorAll(".manage-menu").forEach((item) => item.classList.remove("open"));
+      }
+    });
+
+    document.getElementById("editModalCancelBtn").addEventListener("click", closeEditModal);
+    document.getElementById("editModal").addEventListener("click", (event) => {
+      if (event.target === event.currentTarget) {
+        closeEditModal();
+      }
+    });
+    document.getElementById("editNovelName").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        updateNovelName(e.target.dataset.id, e.target.value);
+      }
+    });
+    document.getElementById("editModalSaveBtn").addEventListener("click", () => {
+      const input = document.getElementById("editNovelName");
+      updateNovelName(input.dataset.id, input.value);
+    });
+
+    document.addEventListener("input", (event) => {
+      if (event.target.classList.contains("chapter-input")) {
+        syncChapterButtonState(event.target.dataset.id);
+      }
+    });
+
+    document.addEventListener("click", (event) => {
+      if (event.target.classList.contains("chapter-save-btn")) {
+        const input = document.getElementById(`chapters-${event.target.dataset.id}`);
+        if (input) {
+          updateChapters(event.target.dataset.id, input.value);
+        }
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.target.classList.contains("chapter-input") && event.key === "Enter") {
+        const button = document.querySelector(`.chapter-save-btn[data-id="${event.target.dataset.id}"]`);
+        if (button) {
+          event.preventDefault();
+          button.click();
+        }
+      }
+    });
+
+    async function removeNovel(id) {
+      const removed = novels.find((n) => n.id === id);
+      try {
+        await sendRequest({
+          action: "delete",
+          id: id
+        });
+
+        novels = novels.filter((novel) => novel.id !== id);
+        renderTable();
+        if (removed) toast(`ลบ "${removed.name}" แล้ว`);
+      } catch (error) {
+        console.error("Delete novel failed:", error);
+      }
+    }
+
+    function syncChapterButtonState(id) {
+      const input = document.getElementById(`chapters-${id}`);
+      const button = document.querySelector(`.chapter-save-btn[data-id="${id}"]`);
+      if (!input || !button) return;
+
+      const originalValue = input.dataset.originalValue;
+      const currentValue = input.value;
+      const hasChanged = String(originalValue) !== String(currentValue);
+      button.classList.toggle("visible", hasChanged);
+    }
+
+    async function updateChapters(id, value) {
+      const novel = novels.find((n) => n.id === id);
+      if (!novel) return;
+
+      const numericValue = Number(value);
+      if (Number.isNaN(numericValue)) return;
+
+      novel.chapters = numericValue;
+
+      try {
+        await sendRequest({
+          action: "update",
+          id: id,
+          name: novel.name,
+          chapters: numericValue
+        });
+
+        const input = document.getElementById(`chapters-${id}`);
+        const button = document.querySelector(`.chapter-save-btn[data-id="${id}"]`);
+        if (input) {
+          input.dataset.originalValue = String(numericValue);
+        }
+        if (button) {
+          button.classList.remove("visible");
+        }
+      } catch (error) {
+        console.error("Update chapters failed:", error);
+      }
+    }
+
+    function searchNovel() {
+      const keyword = document.getElementById("novelName").value.trim();
+      if (!keyword) {
+        renderTable();
+        return;
+      }
+
+      const filtered = novels.filter((novel) => novel.name.toLowerCase().includes(keyword.toLowerCase()));
+      if (filtered.length === 0) {
+        openAddModal(keyword);
+        return;
+      }
+
+      renderTable(filtered);
+    }
+  </script>
+</body>
+</html>
