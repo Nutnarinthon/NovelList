@@ -310,10 +310,10 @@
     flex-direction: column;
     gap: 6px;
     padding: 8px;
-    background: rgba(18,22,31,.98);
-    border: 1px solid var(--border-strong);
+    background: #0f1219;
+    border: 1px solid rgba(232,189,114,.35);
     border-radius: 10px;
-    box-shadow: 0 16px 32px rgba(0,0,0,.28);
+    box-shadow: 0 16px 32px rgba(0,0,0,.55);
     z-index: 40;
   }
 
@@ -321,6 +321,11 @@
     display: flex;
     opacity: 1;
     visibility: visible;
+  }
+
+  .manage-dropdown.top {
+    top: auto;
+    bottom: calc(100% + 8px);
   }
 
   .manage-dropdown button {
