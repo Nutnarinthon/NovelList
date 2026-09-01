@@ -23,7 +23,7 @@
       <div class="field-group">
         <label for="novelName">เพิ่ม / ค้นหานิยาย</label>
         <div class="input-row">
-          <input type="text" id="novelName" placeholder="พิมพ์ชื่อนิยายเพื่อค้นหา หรือเพิ่มใหม่" autocomplete="off">
+          <input type="text" id="novelName" maxlength="200" placeholder="พิมพ์ชื่อนิยายเพื่อค้นหา หรือเพิ่มใหม่" autocomplete="off">
           <div class="search-actions">
             <button type="button" id="addSearchBtn" class="btn-primary">ค้นหา / เพิ่ม</button>
             <button type="button" id="showAllBtn" class="btn-secondary">แสดงทั้งหมด</button>
@@ -58,9 +58,9 @@
       <h2 id="addModalTitle">เพิ่มนิยายใหม่</h2>
       <p id="addModalMessage">ไม่พบนิยายที่ค้นหา ต้องการเพิ่มเรื่องนี้หรือไม่?</p>
       <label class="visually-hidden" for="modalNovelName">ชื่อนิยาย</label>
-      <input type="text" id="modalNovelName" placeholder="ชื่อนิยาย" autocomplete="off">
+      <input type="text" id="modalNovelName" maxlength="200" placeholder="ชื่อนิยาย" autocomplete="off">
       <label for="modalChapterCount">จำนวนตอนที่อ่าน</label>
-      <input type="number" id="modalChapterCount" min="0" value="0" style="margin-top: 8px; width: 100%;">
+      <input type="number" id="modalChapterCount" min="0" max="10000000" step="1" value="0" class="modal-number-input">
       <div class="modal-actions">
         <button type="button" id="modalCancelBtn" class="btn-secondary">ยกเลิก</button>
         <button type="button" id="modalAddBtn" class="btn-primary">เพิ่มเรื่อง</button>
@@ -73,7 +73,7 @@
       <h2 id="editModalTitle">แก้ไขชื่อนิยาย</h2>
       <p id="editModalMessage">ปรับปรุงชื่อนิยายที่เลือก</p>
       <label class="visually-hidden" for="editNovelName">ชื่อนิยาย</label>
-      <input type="text" id="editNovelName" placeholder="ชื่อนิยาย" autocomplete="off">
+      <input type="text" id="editNovelName" maxlength="200" placeholder="ชื่อนิยาย" autocomplete="off">
       <div class="modal-actions">
         <button type="button" id="editModalCancelBtn" class="btn-secondary">ยกเลิก</button>
         <button type="button" id="editModalSaveBtn" class="btn-primary">บันทึก</button>
@@ -85,6 +85,7 @@
 
   <script>
     let novels = [];
+    let lastFocusedElement = null;
     const API = "https://script.google.com/macros/s/AKfycbyaoxMmLOZ3cISqnOXbiH0fqhg43dBFWcw3_lXSFtC5Zgd632RJa0MLwe5xoKOKvkwt/exec";
 
     // ---- Lightweight toast helper (replaces blocking alert() for non-critical messages) ----
@@ -104,13 +105,18 @@
         if (!response.ok) {
           throw new Error(`Request failed with status ${response.status}`);
         }
-        novels = await response.json();
+        const result = await response.json();
+        if (!result || result.success !== true || !Array.isArray(result.data)) {
+          throw new Error(result?.message || "Invalid API response");
+        }
+        novels = result.data.map(normalizeNovel);
         sortNovels();
         renderTable();
       } catch (error) {
         console.error("Load data failed:", error);
         toast("ไม่สามารถโหลดข้อมูลได้", "danger");
-        renderTable(); // clears the loading row even on failure
+        novels = [];
+        renderTable();
       }
     }
 
@@ -127,11 +133,42 @@
           throw new Error(`Request failed with status ${response.status}`);
         }
 
-        return response;
+        const result = await response.json();
+        if (!result || result.success !== true) {
+          throw new Error(result?.message || "API operation failed");
+        }
+        return result;
       } catch (error) {
         console.error("API request failed:", error);
-        toast("เกิดข้อผิดพลาดในการเชื่อมต่อข้อมูล", "danger");
+        toast(error.message || "เกิดข้อผิดพลาดในการเชื่อมต่อข้อมูล", "danger");
         throw error;
+      }
+    }
+
+    function normalizeNovel(novel) {
+      return {
+        id: String(novel?.id || ""),
+        name: String(novel?.name || ""),
+        chapters: normalizeChapters(novel?.chapters)
+      };
+    }
+
+    function normalizeChapters(value) {
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed)) return 0;
+      return Math.min(10000000, Math.max(0, Math.trunc(parsed)));
+    }
+
+    function setBusy(button, isBusy, busyText = "กำลังบันทึก...") {
+      if (!button) return;
+      if (isBusy) {
+        button.dataset.originalText = button.textContent;
+        button.textContent = busyText;
+        button.disabled = true;
+      } else {
+        button.textContent = button.dataset.originalText || button.textContent;
+        delete button.dataset.originalText;
+        button.disabled = false;
       }
     }
 
@@ -150,75 +187,88 @@
       if (list.length === 0) {
         const tr = document.createElement("tr");
         tr.className = "empty-row";
-        tr.innerHTML = `<td colspan="3">${
-          isFiltered ? "🔎 ไม่พบนิยายที่ค้นหา" : "📖 ยังไม่มีนิยายในรายการ ลองเพิ่มเรื่องแรกของคุณ"
-        }</td>`;
+        const td = document.createElement("td");
+        td.colSpan = 3;
+        td.textContent = isFiltered
+          ? "🔎 ไม่พบนิยายที่ค้นหา"
+          : "📖 ยังไม่มีนิยายในรายการ ลองเพิ่มเรื่องแรกของคุณ";
+        tr.appendChild(td);
         fragment.appendChild(tr);
       } else {
-        list.forEach((novel) => {
-          const tr = document.createElement("tr");
-
-          tr.innerHTML = `
-            <td class="col-name" data-label="ชื่อนิยาย">${novel.name}</td>
-            <td data-label="จำนวนตอนที่อ่าน">
-              <div class="chapter-editor">
-                <label class="visually-hidden" for="chapters-${novel.id}">จำนวนตอนที่อ่านของ ${novel.name}</label>
-                <input
-                  id="chapters-${novel.id}"
-                  class="chapter-input"
-                  type="number"
-                  min="0"
-                  value="${novel.chapters}"
-                  data-id="${novel.id}"
-                  data-original-value="${novel.chapters}">
-                <button
-                  type="button"
-                  class="btn-secondary chapter-save-btn"
-                  data-id="${novel.id}"
-                  aria-label="ยืนยันจำนวนตอนที่อ่านของ ${novel.name}">
-                  ยืนยัน
-                </button>
-              </div>
-            </td>
-            <td data-label="จัดการ">
-              <div class="manage-menu">
-                <button
-                  type="button"
-                  class="btn-secondary manage-toggle"
-                  data-id="${novel.id}"
-                  aria-haspopup="true"
-                  aria-expanded="false"
-                  aria-label="จัดการ ${novel.name}">
-                  จัดการ
-                </button>
-                <div class="manage-dropdown" role="menu" aria-label="เมนูจัดการ ${novel.name}">
-                  <button
-                    type="button"
-                    class="manage-edit-btn"
-                    data-id="${novel.id}"
-                    role="menuitem"
-                    aria-label="แก้ไขชื่อนิยาย ${novel.name}">
-                    แก้ไข
-                  </button>
-                  <button
-                    type="button"
-                    class="btn-danger delete-btn"
-                    data-id="${novel.id}"
-                    role="menuitem"
-                    aria-label="ลบ ${novel.name} ออกจากรายการ">
-                    ลบ
-                  </button>
-                </div>
-              </div>
-            </td>
-          `;
-
-          fragment.appendChild(tr);
-        });
+        list.forEach((novel) => fragment.appendChild(createNovelRow(novel)));
       }
 
       tbody.innerHTML = "";
       tbody.appendChild(fragment);
+    }
+
+    function createNovelRow(novel) {
+      const tr = document.createElement("tr");
+      const nameCell = document.createElement("td");
+      nameCell.className = "col-name";
+      nameCell.dataset.label = "ชื่อนิยาย";
+      nameCell.textContent = novel.name;
+
+      const chapterCell = document.createElement("td");
+      chapterCell.dataset.label = "จำนวนตอนที่อ่าน";
+      const editor = document.createElement("div");
+      editor.className = "chapter-editor";
+      const label = document.createElement("label");
+      label.className = "visually-hidden";
+      label.textContent = `จำนวนตอนที่อ่านของ ${novel.name}`;
+      const input = document.createElement("input");
+      input.className = "chapter-input";
+      input.type = "number";
+      input.min = "0";
+      input.max = "10000000";
+      input.step = "1";
+      input.value = String(novel.chapters);
+      input.dataset.id = novel.id;
+      input.dataset.originalValue = String(novel.chapters);
+      label.htmlFor = `chapters-${novel.id}`;
+      input.id = `chapters-${novel.id}`;
+      const saveButton = document.createElement("button");
+      saveButton.type = "button";
+      saveButton.className = "btn-secondary chapter-save-btn";
+      saveButton.dataset.id = novel.id;
+      saveButton.setAttribute("aria-label", `ยืนยันจำนวนตอนที่อ่านของ ${novel.name}`);
+      saveButton.textContent = "ยืนยัน";
+      editor.append(label, input, saveButton);
+      chapterCell.appendChild(editor);
+
+      const manageCell = document.createElement("td");
+      manageCell.dataset.label = "จัดการ";
+      const menu = document.createElement("div");
+      menu.className = "manage-menu";
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "btn-secondary manage-toggle";
+      toggle.dataset.id = novel.id;
+      toggle.setAttribute("aria-haspopup", "true");
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.setAttribute("aria-label", `จัดการ ${novel.name}`);
+      toggle.textContent = "จัดการ";
+      const dropdown = document.createElement("div");
+      dropdown.className = "manage-dropdown";
+      dropdown.setAttribute("role", "menu");
+      dropdown.setAttribute("aria-label", `เมนูจัดการ ${novel.name}`);
+      const editButton = document.createElement("button");
+      editButton.type = "button";
+      editButton.className = "manage-edit-btn";
+      editButton.dataset.id = novel.id;
+      editButton.setAttribute("role", "menuitem");
+      editButton.textContent = "แก้ไข";
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.className = "btn-danger delete-btn";
+      deleteButton.dataset.id = novel.id;
+      deleteButton.setAttribute("role", "menuitem");
+      deleteButton.textContent = "ลบ";
+      dropdown.append(editButton, deleteButton);
+      menu.append(toggle, dropdown);
+      manageCell.appendChild(menu);
+      tr.append(nameCell, chapterCell, manageCell);
+      return tr;
     }
 
     function updateCount(shownCount, isFiltered) {
@@ -230,18 +280,17 @@
       }
     }
 
-    function generateId() {
-      return crypto.randomUUID();
-    }
-
     async function addNovel(nameOverride = null, chaptersOverride = null) {
       const inputValue = nameOverride !== null ? nameOverride : document.getElementById("novelName").value;
       const name = inputValue.trim();
       const rawChapterValue = chaptersOverride !== null ? chaptersOverride : document.getElementById("modalChapterCount").value;
-      const parsedChapters = Number(rawChapterValue);
-      const chapters = Number.isFinite(parsedChapters) ? Math.max(0, Math.trunc(parsedChapters)) : 0;
+      const chapters = normalizeChapters(rawChapterValue);
 
       if (!name) return;
+      if (name.length > 200) {
+        toast("ชื่อนิยายต้องไม่เกิน 200 ตัวอักษร", "danger");
+        return;
+      }
 
       if (novels.some((n) => n.name.toLowerCase() === name.toLowerCase())) {
         toast("มีนิยายนี้แล้ว", "danger");
@@ -255,6 +304,8 @@
         chapters: chapters
       };
 
+      const addButton = document.getElementById("modalAddBtn");
+      setBusy(addButton, true, "กำลังเพิ่ม...");
       try {
         await sendRequest({
           action: "add",
@@ -271,6 +322,8 @@
         toast(`เพิ่ม "${novel.name}" แล้ว`);
       } catch (error) {
         console.error("Add novel failed:", error);
+      } finally {
+        setBusy(addButton, false);
       }
     }
 
@@ -278,7 +331,8 @@
       const modal = document.getElementById("addModal");
       const input = document.getElementById("modalNovelName");
       const chapterInput = document.getElementById("modalChapterCount");
-      input.value = preFill.trim();
+      lastFocusedElement = document.activeElement;
+      input.value = preFill.trim().slice(0, 200);
       chapterInput.value = 0;
       modal.classList.add("visible");
       modal.setAttribute("aria-hidden", "false");
@@ -293,6 +347,8 @@
       chapterInput.value = 0;
       modal.classList.remove("visible");
       modal.setAttribute("aria-hidden", "true");
+      lastFocusedElement?.focus();
+      lastFocusedElement = null;
     }
 
     function handleCombinedSearch() {
@@ -339,6 +395,7 @@
     function openEditModal(id, currentName) {
       const modal = document.getElementById("editModal");
       const input = document.getElementById("editNovelName");
+      lastFocusedElement = document.activeElement;
       input.dataset.id = id;
       input.value = currentName;
       modal.classList.add("visible");
@@ -353,11 +410,17 @@
       input.value = "";
       modal.classList.remove("visible");
       modal.setAttribute("aria-hidden", "true");
+      lastFocusedElement?.focus();
+      lastFocusedElement = null;
     }
 
     async function updateNovelName(id, newName) {
       const trimmed = newName.trim();
       if (!trimmed) return;
+      if (trimmed.length > 200) {
+        toast("ชื่อนิยายต้องไม่เกิน 200 ตัวอักษร", "danger");
+        return;
+      }
 
       const novel = novels.find((n) => n.id === id);
       if (!novel) return;
@@ -368,6 +431,8 @@
       }
 
       const oldName = novel.name;
+      const saveButton = document.getElementById("editModalSaveBtn");
+      setBusy(saveButton, true);
       novel.name = trimmed;
       try {
         await sendRequest({
@@ -377,12 +442,15 @@
           chapters: novel.chapters
         });
 
+        sortNovels();
         renderTable();
         closeEditModal();
         toast(`เปลี่ยนชื่อตัวเรื่องจาก "${oldName}" เป็น "${trimmed}" แล้ว`);
       } catch (error) {
         console.error("Rename novel failed:", error);
         novel.name = oldName;
+      } finally {
+        setBusy(saveButton, false);
       }
     }
 
@@ -406,11 +474,7 @@
         const menu = manageMenu.parentElement;
         const isOpen = menu.classList.contains("open");
 
-        document.querySelectorAll(".manage-menu").forEach((item) => {
-          item.classList.remove("open");
-          const toggle = item.querySelector(".manage-toggle");
-          if (toggle) toggle.setAttribute("aria-expanded", "false");
-        });
+        closeManageMenus();
 
         if (!isOpen) {
           menu.classList.add("open");
@@ -425,22 +489,29 @@
         if (novel) {
           openEditModal(novel.id, novel.name);
         }
-        document.querySelectorAll(".manage-menu").forEach((item) => item.classList.remove("open"));
+        closeManageMenus();
         return;
       }
 
       if (event.target.classList.contains("delete-btn")) {
         if (confirm("ต้องการลบหรือไม่")) {
-          removeNovel(event.target.dataset.id);
+          removeNovel(event.target.dataset.id, event.target);
         }
-        document.querySelectorAll(".manage-menu").forEach((item) => item.classList.remove("open"));
+        closeManageMenus();
         return;
       }
 
       if (!event.target.closest(".manage-menu")) {
-        document.querySelectorAll(".manage-menu").forEach((item) => item.classList.remove("open"));
+        closeManageMenus();
       }
     });
+
+    function closeManageMenus() {
+      document.querySelectorAll(".manage-menu").forEach((item) => {
+        item.classList.remove("open");
+        item.querySelector(".manage-toggle")?.setAttribute("aria-expanded", "false");
+      });
+    }
 
     document.getElementById("editModalCancelBtn").addEventListener("click", closeEditModal);
     document.getElementById("editModal").addEventListener("click", (event) => {
@@ -475,7 +546,7 @@
 
     document.addEventListener("keydown", (event) => {
       if (event.target.classList.contains("chapter-input") && event.key === "Enter") {
-        const button = document.querySelector(`.chapter-save-btn[data-id="${event.target.dataset.id}"]`);
+        const button = findChapterButton(event.target.dataset.id);
         if (button) {
           event.preventDefault();
           button.click();
@@ -483,8 +554,9 @@
       }
     });
 
-    async function removeNovel(id) {
+    async function removeNovel(id, button) {
       const removed = novels.find((n) => n.id === id);
+      setBusy(button, true, "กำลังลบ...");
       try {
         await sendRequest({
           action: "delete",
@@ -496,12 +568,14 @@
         if (removed) toast(`ลบ "${removed.name}" แล้ว`);
       } catch (error) {
         console.error("Delete novel failed:", error);
+      } finally {
+        setBusy(button, false);
       }
     }
 
     function syncChapterButtonState(id) {
       const input = document.getElementById(`chapters-${id}`);
-      const button = document.querySelector(`.chapter-save-btn[data-id="${id}"]`);
+      const button = findChapterButton(id);
       if (!input || !button) return;
 
       const originalValue = input.dataset.originalValue;
@@ -515,9 +589,16 @@
       if (!novel) return;
 
       const numericValue = Number(value);
-      if (Number.isNaN(numericValue)) return;
+      if (!Number.isInteger(numericValue) || numericValue < 0 || numericValue > 10000000) {
+        toast("จำนวนตอนต้องเป็นจำนวนเต็มตั้งแต่ 0 ถึง 10,000,000", "danger");
+        return;
+      }
 
+      const oldChapters = novel.chapters;
       novel.chapters = numericValue;
+
+      const button = findChapterButton(id);
+      setBusy(button, true);
 
       try {
         await sendRequest({
@@ -528,7 +609,6 @@
         });
 
         const input = document.getElementById(`chapters-${id}`);
-        const button = document.querySelector(`.chapter-save-btn[data-id="${id}"]`);
         if (input) {
           input.dataset.originalValue = String(numericValue);
         }
@@ -537,24 +617,25 @@
         }
       } catch (error) {
         console.error("Update chapters failed:", error);
+        novel.chapters = oldChapters;
+        const input = document.getElementById(`chapters-${id}`);
+        if (input) input.value = String(oldChapters);
+      } finally {
+        setBusy(button, false);
       }
     }
 
-    function searchNovel() {
-      const keyword = document.getElementById("novelName").value.trim();
-      if (!keyword) {
-        renderTable();
-        return;
-      }
-
-      const filtered = novels.filter((novel) => novel.name.toLowerCase().includes(keyword.toLowerCase()));
-      if (filtered.length === 0) {
-        openAddModal(keyword);
-        return;
-      }
-
-      renderTable(filtered);
+    function findChapterButton(id) {
+      return Array.from(document.querySelectorAll(".chapter-save-btn"))
+        .find((button) => button.dataset.id === id) || null;
     }
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      if (document.getElementById("addModal").classList.contains("visible")) closeAddModal();
+      if (document.getElementById("editModal").classList.contains("visible")) closeEditModal();
+      closeManageMenus();
+    });
   </script>
 </body>
 </html>

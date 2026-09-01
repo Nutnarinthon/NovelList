@@ -1,6 +1,4 @@
 
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&family=Noto+Serif+Thai:wght@600;700;800&display=swap');
-
   :root {
     --bg: #0b0d12;
     --bg-soft: #10131a;
@@ -239,6 +237,12 @@
 
   button:hover { transform: translateY(-1px); }
   button:active { transform: translateY(0); }
+
+  button:disabled {
+    cursor: wait;
+    opacity: .65;
+    transform: none;
+  }
 
   button:focus-visible {
     outline: 2px solid var(--focus);
@@ -510,6 +514,11 @@
   .modal-card input[type="number"] {
     margin-top: 7px !important;
     width: 100% !important;
+  }
+
+  .modal-number-input {
+    margin-top: 8px;
+    width: 100%;
   }
 
   .modal-actions {
